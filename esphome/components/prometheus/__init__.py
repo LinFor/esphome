@@ -15,12 +15,15 @@ AUTO_LOAD = ["web_server_base"]
 prometheus_ns = cg.esphome_ns.namespace("prometheus")
 PrometheusHandler = prometheus_ns.class_("PrometheusHandler", cg.Component)
 
+CONF_CUSTOM_METRIC_NAME = "metric_name"
 CUSTOMIZED_ENTITY = cv.Schema(
     {
+        cv.Optional(CONF_CUSTOM_METRIC_NAME): cv.string_strict,
         cv.Optional(CONF_ID): cv.string_strict,
         cv.Optional(CONF_NAME): cv.string_strict,
     },
     cv.has_at_least_one_key,
+    cv.ALLOW_EXTRA
 )
 
 CONFIG_SCHEMA = cv.Schema(
@@ -52,7 +55,5 @@ async def to_code(config):
 
     for key, value in config[CONF_RELABEL].items():
         entity = await cg.get_variable(key)
-        if CONF_ID in value:
-            cg.add(var.add_label_id(entity, value[CONF_ID]))
-        if CONF_NAME in value:
-            cg.add(var.add_label_name(entity, value[CONF_NAME]))
+        for lkey, lvalue in value.items():
+            cg.add(var.add_label(entity, lkey, lvalue))

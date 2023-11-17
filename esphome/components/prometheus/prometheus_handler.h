@@ -22,6 +22,16 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
    */
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
 
+  /** Add the new label for an entity's metric.
+   *
+   * @param obj The entity for which to set the label
+   * @param name The label name
+   * @param value The label value
+   */
+  void add_label(EntityBase *obj, const std::string &name, const std::string &value) {
+    relabel_map_[obj].insert(std::make_pair(name, value));
+  }
+
   /** Add the value for an entity's "id" label.
    *
    * @param obj The entity for which to set the "id" label
@@ -57,8 +67,18 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   }
 
  protected:
-  std::string relabel_id_(EntityBase *obj);
-  std::string relabel_name_(EntityBase *obj);
+  /// Gets metric name prefix (i.e. 'esphome_sensor') with default fallback
+  std::string get_metric_name_prefix_(EntityBase *obj, const std::string &default_value);
+  /// Write single label with provided label name and value
+  void write_label_(AsyncResponseStream *stream, const std::string &name, const std::string &value);
+  void write_label_(AsyncResponseStream *stream, const std::string &name, const std::string &value,
+                    bool &start_with_comma);
+  /// Write all common labels (id, name) taking into account configured relabelling
+  void write_labels_(AsyncResponseStream *stream, EntityBase *obj);
+  /// Write metric name and common labels without trailing '}' to allow append custom metric labels (i.e. unit, channel,
+  /// effect and so on)
+  void write_metric_start_(AsyncResponseStream *stream, EntityBase *obj, const std::string &metric_name,
+                           const std::string &metric_suffix);
 
 #ifdef USE_SENSOR
   /// Return the type for prometheus
@@ -102,6 +122,20 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void switch_row_(AsyncResponseStream *stream, switch_::Switch *obj);
 #endif
 
+#ifdef USE_NUMBER
+  /// Return the type for prometheus
+  void number_type_(AsyncResponseStream *stream);
+  /// Return the sensor state as prometheus data point
+  void number_row_(AsyncResponseStream *stream, number::Number *obj);
+#endif
+
+#ifdef USE_CLIMATE
+  /// Return the type for prometheus
+  void climate_type_(AsyncResponseStream *stream);
+  /// Return the sensor state as prometheus data point
+  void climate_row_(AsyncResponseStream *stream, climate::Climate *obj);
+#endif
+
 #ifdef USE_LOCK
   /// Return the type for prometheus
   void lock_type_(AsyncResponseStream *stream);
@@ -111,6 +145,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
   web_server_base::WebServerBase *base_;
   bool include_internal_{false};
+  std::map<EntityBase *, std::map<std::string, std::string>> relabel_map_;
   std::map<EntityBase *, std::string> relabel_map_id_;
   std::map<EntityBase *, std::string> relabel_map_name_;
 };
